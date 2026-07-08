@@ -27,15 +27,9 @@
             "keyColor": "yellow"
         },
         {
-            "type": "command",
-            "key": " ",
-            "keyColor": "blue",
-            "text": "echo JaKooLit Version: ${DOTS_VERSION}"
-        },
-        {
             "type": "wm",
             "key": " ",
-            "keyColor": "magenta"
+            "keyColor": "blue"
         },
         {
             "type": "shell",
@@ -67,12 +61,6 @@
             "keyColor": "green"
         },
         {
-            "type": "command",
-            "key": "󱦟 ",
-            "keyColor": "magenta",
-            "text": "echo $(( ($(date +%s) - $(stat -c %W /)) / 86400 )) days"
-        },
-        {
             "type": "custom",
             "format": " ─────────────────────────── "
         },
@@ -80,6 +68,6 @@
             "type": "custom",
             "format": "   \u001b[31m  \u001b[32m  \u001b[33m  \u001b[34m  \u001b[35m  \u001b[36m  \u001b[37m  \u001b[90m "
         },
-		"break"
+		"break",
     ]
 }

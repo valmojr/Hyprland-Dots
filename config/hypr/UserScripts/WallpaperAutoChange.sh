@@ -8,6 +8,7 @@
 # NOTE: this script uses bash (not POSIX shell) for the RANDOM variable
 
 wallust_refresh=$HOME/.config/hypr/scripts/RefreshNoWaybar.sh
+source "$HOME/.config/hypr/scripts/wallpaper_backend.sh" || exit 1
 
 focused_monitor=$(hyprctl monitors | awk '/^Monitor/{name=$2} /focused: yes/{print name}')
 
@@ -31,7 +32,7 @@ while true; do
 		done \
 		| sort -n | cut -d':' -f2- \
 		| while read -r img; do
-			swww img -o $focused_monitor "$img"
+			wallpaper_img -o "$focused_monitor" "$img"
 			# Regenerate colors from the exact image path to avoid cache races
 			$HOME/.config/hypr/scripts/WallustSwww.sh "$img"
 			# Refresh UI components that depend on wallust output

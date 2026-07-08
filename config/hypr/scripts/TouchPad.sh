@@ -27,7 +27,7 @@ if [[ -z "$touchpad_device" ]]; then
     exit 1
 fi
 
-touchpad_keyword="${TOUCHPAD_KEYWORD:-device:${touchpad_device}:enabled}"
+touchpad_keyword="${TOUCHPAD_KEYWORD:-device[${touchpad_device}]:enabled}"
 status_file="${XDG_RUNTIME_DIR:-/tmp}/touchpad.status"
 
 enable_touchpad() {

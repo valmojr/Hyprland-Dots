@@ -14,6 +14,7 @@ ags_style="$HOME/.config/ags/user/style.css"
 SCRIPTSDIR="$HOME/.config/hypr/scripts"
 notif="$HOME/.config/swaync/images/bell.png"
 wallust_rofi="$HOME/.config/wallust/templates/colors-rofi.rasi"
+source "$HOME/.config/hypr/scripts/wallpaper_backend.sh" || exit 1
 
 kitty_conf="$HOME/.config/kitty/kitty.conf"
 
@@ -31,11 +32,10 @@ for pid in waybar rofi swaync ags swaybg; do
 done
 
 
-# Initialize swww if needed
-swww query || swww-daemon --format xrgb
+# Initialize wallpaper backend if needed
+wallpaper_ensure_daemon
 
-# Set swww options
-swww="swww img"
+# Set wallpaper options
 effect="--transition-bezier .43,1.19,1,.4 --transition-fps 60 --transition-type grow --transition-pos 0.925,0.977 --transition-duration 2"
 
 # Determine current theme mode
@@ -139,8 +139,8 @@ else
     next_wallpaper="$(find -L "${light_wallpapers}" -type f \( -iname "*.jpg" -o -iname "*.png" \) -print0 | shuf -n1 -z | xargs -0)"
 fi
 
-# Update wallpaper using swww command
-$swww "${next_wallpaper}" $effect
+# Update wallpaper using the detected backend
+wallpaper_img "${next_wallpaper}" $effect
 
 
 # Set Kvantum Manager theme & QT5/QT6 settings
@@ -264,4 +264,3 @@ sleep 0.5
 notify-send -u low -i "$notif" " Themes switched to:" " $next_mode Mode"
 
 exit 0
-

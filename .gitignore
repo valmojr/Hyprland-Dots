@@ -1,6 +1,12 @@
 WARP.md 
 .warp.md 
 result
+Copy-Logs/
+Install-Logs/
+*.log
+*.bak
+*~
+.DS_Store
 
 # Python artifacts
 __pycache__/
@@ -41,3 +47,15 @@ htmlcov/
 .vscode/
 *.swp
 *.swo
+
+# Runtime and machine-specific state copied from a live setup
+config/hypr/.initial_startup_done
+config/hypr/.vscode/
+config/hypr/monitors.conf
+config/hypr/monitors.lua
+config/hypr/workspaces.conf
+config/hypr/Monitor_Profiles/
+config/hypr/UserConfigs/LaptopDisplay.conf
+config/hypr/pixa3848-libinput-local-overrides.quirks
+config/hypr/wallpaper_effects/.wallpaper_current
+config/rofi/.current_wallpaper
