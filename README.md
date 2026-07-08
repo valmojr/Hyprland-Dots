@@ -65,10 +65,11 @@ https://github.com/user-attachments/assets/49bc12b2-abaf-45de-a21c-67aacd9bb872
 - NOTE: you need package `curl` for this to work
 
 ```bash
-sh <(curl -L https://raw.githubusercontent.com/JaKooLit/Hyprland-Dots/main/Distro-Hyprland.sh)
+sh <(curl -L https://raw.githubusercontent.com/valmojr/Hyprland-Dots/main/Distro-Hyprland.sh)
 ```
 
 - You can use the above command to automatically clone the `Distro-Hyprland` install scripts
+- In this fork, the installer keeps using the distro-specific setup repos, but it patches them to pull `valmojr/Hyprland-Dots` so your installed environment includes my customizations
 - It will clone the install script and start the `install.sh` 😎
 
 ### 👁️‍🗨️ My Hyprland install Scripts 👁️‍🗨️
@@ -126,7 +127,7 @@ sh <(curl -L https://raw.githubusercontent.com/JaKooLit/Hyprland-Dots/main/Distr
 > Note: Ubuntu is exception, it has version specific branches
 
 ```bash
-git clone --depth=1 https://github.com/JaKooLit/Hyprland-Dots.git
+git clone --depth=1 https://github.com/valmojr/Hyprland-Dots.git
 cd Hyprland-Dots
 ```
 
@@ -134,7 +135,7 @@ cd Hyprland-Dots
 > Not recommeded for non-testing systems
 
 ```bash
-git clone --depth=1 https://github.com/JaKooLit/Hyprland-Dots.git -b development
+git clone --depth=1 https://github.com/valmojr/Hyprland-Dots.git -b development
 cd Hyprland-Dots
 ```
 

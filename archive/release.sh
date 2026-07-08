@@ -78,7 +78,7 @@ if [ -f Hyprland-Dots.tar.gz ]; then
   existing_version=$(echo Hyprland-Dots.tar.gz | grep -oP 'v\d+\.\d+\.\d+' | sed 's/v//')
 
   # Fetch the tag_name for the latest release using the GitHub API
-  latest_version=$(curl -s https://api.github.com/repos/JaKooLit/Hyprland-Dots/releases/latest | grep "tag_name" | cut -d '"' -f 4 | sed 's/v//')
+  latest_version=$(curl -s https://api.github.com/repos/valmojr/Hyprland-Dots/releases/latest | grep "tag_name" | cut -d '"' -f 4 | sed 's/v//')
 
   # Check if versions match
   if [ "$existing_version" = "$latest_version" ]; then
@@ -108,7 +108,7 @@ fi
 printf "${NOTE} Downloading the latest Hyprland source code release...\n"
 
 # Fetch the tag name for the latest release using the GitHub API
-latest_tag=$(curl -s https://api.github.com/repos/JaKooLit/Hyprland-Dots/releases/latest | grep "tag_name" | cut -d '"' -f 4)
+latest_tag=$(curl -s https://api.github.com/repos/valmojr/Hyprland-Dots/releases/latest | grep "tag_name" | cut -d '"' -f 4)
 
 # Check if the tag is obtained successfully
 if [ -z "$latest_tag" ]; then
@@ -117,7 +117,7 @@ if [ -z "$latest_tag" ]; then
 fi
 
 # Fetch the tarball URL for the latest release using the GitHub API
-latest_tarball_url=$(curl -s https://api.github.com/repos/JaKooLit/Hyprland-Dots/releases/latest | grep "tarball_url" | cut -d '"' -f 4)
+latest_tarball_url=$(curl -s https://api.github.com/repos/valmojr/Hyprland-Dots/releases/latest | grep "tarball_url" | cut -d '"' -f 4)
 
 # Check if the URL is obtained successfully
 if [ -z "$latest_tarball_url" ]; then

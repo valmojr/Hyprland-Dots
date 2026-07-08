@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# https://github.com/JaKooLit
+# https://github.com/valmojr
 
 # Script design to clone the Distro-Hyprland install scripts
+
+DISTRO_OWNER="${DISTRO_OWNER:-JaKooLit}"
+DOTFILES_OWNER="${DOTFILES_OWNER:-valmojr}"
+DOTFILES_REPO="${DOTFILES_REPO:-Hyprland-Dots}"
+DOTFILES_URL="https://github.com/${DOTFILES_OWNER}/${DOTFILES_REPO}"
 
 # Set some colors for output messages
 OK="$(tput setaf 2)[OK]$(tput sgr0)"
@@ -35,7 +40,7 @@ if [ "$distro_name" = "Debian GNU/Linux" ]; then
     INSTALL_CMD="sudo apt install -y"
     GIT_INSTALL_CMD="sudo apt install -y git"
     Distro="Debian-Hyprland"
-    Github_URL="https://github.com/JaKooLit/$Distro.git"
+    Github_URL="https://github.com/${DISTRO_OWNER}/$Distro.git"
     Distro_DIR="$HOME/$Distro"
 elif [ "$distro_name" = "Ubuntu" ]; then
     PACKAGE_MANAGER="apt"
@@ -45,35 +50,35 @@ elif [ "$distro_name" = "Ubuntu" ]; then
     case "$distro_version" in
         "24.04")
             Distro="Ubuntu-Hyprland"
-            Github_URL="https://github.com/JaKooLit/$Distro.git"
+            Github_URL="https://github.com/${DISTRO_OWNER}/$Distro.git"
             Github_URL_branch="24.04"
             Distro_DIR="$HOME/$Distro-$Github_URL_branch"
             echo "${INFO} Ubuntu 24.04 detected. Customizing setup for Ubuntu 24.04."
             ;;
         "24.10")
             Distro="Ubuntu-Hyprland"
-            Github_URL="https://github.com/JaKooLit/$Distro.git"
+            Github_URL="https://github.com/${DISTRO_OWNER}/$Distro.git"
             Github_URL_branch="24.10"
             Distro_DIR="$HOME/$Distro-$Github_URL_branch"
             echo "${INFO} Ubuntu 24.10 detected. Customizing setup for Ubuntu 24.10."
             ;;
         "25.04")
             Distro="Ubuntu-Hyprland"
-            Github_URL="https://github.com/JaKooLit/$Distro.git"
+            Github_URL="https://github.com/${DISTRO_OWNER}/$Distro.git"
             Github_URL_branch="25.04"
             Distro_DIR="$HOME/$Distro-$Github_URL_branch"
             echo "${INFO} Ubuntu 25.04 detected. Customizing setup for Ubuntu 25.04."
             ;;
         "25.10")
             Distro="Ubuntu-Hyprland"
-            Github_URL="https://github.com/JaKooLit/$Distro.git"
+            Github_URL="https://github.com/${DISTRO_OWNER}/$Distro.git"
             Github_URL_branch="25.10"
             Distro_DIR="$HOME/$Distro-$Github_URL_branch"
             echo "${INFO} Ubuntu 25.10 detected. Customizing setup for Ubuntu 25.10."
             ;;
         "26.04-development")
             Distro="Ubuntu-Hyprland"
-            Github_URL="https://github.com/JaKooLit/$Distro.git"
+            Github_URL="https://github.com/${DISTRO_OWNER}/$Distro.git"
             Github_URL_branch="26.04-development"
             Distro_DIR="$HOME/$Distro-$Github_URL_branch"
             echo "${INFO} Ubuntu 26.04 (development) detected. Customizing setup for Ubuntu 26.04 development branch."
@@ -90,33 +95,46 @@ elif command -v pacman &> /dev/null; then
     INSTALL_CMD="sudo pacman -S --noconfirm"
     GIT_INSTALL_CMD="sudo pacman -S git --noconfirm"
     Distro="Arch-Hyprland"
-    Github_URL="https://github.com/JaKooLit/$Distro.git"
+    Github_URL="https://github.com/${DISTRO_OWNER}/$Distro.git"
     Distro_DIR="$HOME/$Distro"
 elif command -v dnf &> /dev/null; then
     PACKAGE_MANAGER="dnf"
     INSTALL_CMD="sudo dnf install -y"
     GIT_INSTALL_CMD="sudo dnf install -y git"
     Distro="Fedora-Hyprland"
-    Github_URL="https://github.com/JaKooLit/$Distro.git"
+    Github_URL="https://github.com/${DISTRO_OWNER}/$Distro.git"
     Distro_DIR="$HOME/$Distro"
 elif command -v zypper &> /dev/null; then
     PACKAGE_MANAGER="zypper"
     INSTALL_CMD="sudo zypper install -y"
     GIT_INSTALL_CMD="sudo zypper install -y git"
     Distro="OpenSUSE-Hyprland"
-    Github_URL="https://github.com/JaKooLit/$Distro.git"
+    Github_URL="https://github.com/${DISTRO_OWNER}/$Distro.git"
     Distro_DIR="$HOME/$Distro"
 elif [ "$distro_name" = "NixOS" ]; then
     PACKAGE_MANAGER="nix"
     INSTALL_CMD="nix-shell"
     GIT_INSTALL_CMD="nix-shell -p git curl pciutils"
     Distro="NixOS-Hyprland"
-    Github_URL="https://github.com/JaKooLit/$Distro.git"
+    Github_URL="https://github.com/${DISTRO_OWNER}/$Distro.git"
     Distro_DIR="$HOME/$Distro"
 else
     echo "${ERROR} Unsupported distribution: $distro_name. Exiting."
     exit 1
 fi
+
+patch_distro_installer() {
+    local dotfiles_script="$Distro_DIR/install-scripts/dotfiles-main.sh"
+
+    if [ ! -f "$dotfiles_script" ]; then
+        echo "${WARN} Could not find $dotfiles_script. Skipping dotfiles source patch."
+        return
+    fi
+
+    sed -i \
+        -e "s|https://github.com/JaKooLit/Hyprland-Dots|${DOTFILES_URL}|g" \
+        "$dotfiles_script"
+}
 
 # Check for Git and install if not found
 if ! command -v git &> /dev/null; then
@@ -132,6 +150,7 @@ if [ -d "$Distro_DIR" ]; then
     echo "${YELLOW}$Distro_DIR exists. Updating the repository... ${RESET}"
     cd "$Distro_DIR"
     git stash && git pull
+    patch_distro_installer
     chmod +x install.sh
     ./install.sh
 else
@@ -146,6 +165,7 @@ else
     fi
     
     cd "$Distro_DIR"
+    patch_distro_installer
     chmod +x install.sh
     ./install.sh
 fi
