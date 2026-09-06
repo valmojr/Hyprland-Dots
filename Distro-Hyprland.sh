@@ -125,15 +125,25 @@ fi
 
 patch_distro_installer() {
     local dotfiles_script="$Distro_DIR/install-scripts/dotfiles-main.sh"
+    local packages_script="$Distro_DIR/install-scripts/01-hypr-pkgs.sh"
+    local final_check_script="$Distro_DIR/install-scripts/02-Final-Check.sh"
 
-    if [ ! -f "$dotfiles_script" ]; then
+    if [ -f "$dotfiles_script" ]; then
+        sed -i \
+            -e "s|https://github.com/JaKooLit/Hyprland-Dots|${DOTFILES_URL}|g" \
+            "$dotfiles_script"
+    else
         echo "${WARN} Could not find $dotfiles_script. Skipping dotfiles source patch."
-        return
     fi
 
-    sed -i \
-        -e "s|https://github.com/JaKooLit/Hyprland-Dots|${DOTFILES_URL}|g" \
-        "$dotfiles_script"
+    # Waybar 0.15.0 cannot activate workspaces after Hyprland switches to the
+    # Lua dispatcher.  PR #5013 is in waybar-git and will ship in Waybar 0.16.
+    if [ -f "$packages_script" ]; then
+        sed -i -E 's/^([[:space:]]*)waybar([[:space:]]*)$/\1waybar-git\2/' "$packages_script"
+    fi
+    if [ -f "$final_check_script" ]; then
+        sed -i -E 's/^([[:space:]]*)waybar([[:space:]]*)$/\1waybar-git\2/' "$final_check_script"
+    fi
 }
 
 # Check for Git and install if not found

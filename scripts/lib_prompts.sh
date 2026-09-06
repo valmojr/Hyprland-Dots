@@ -17,7 +17,7 @@ prompt_detect_layout() {
   echo "(unset)"
 }
 
-# Confirm or set keyboard layout; writes to SystemSettings.conf.
+# Confirm or set keyboard layout; writes to SystemSettings.lua.
 prompt_keyboard_layout() {
   local layout="$1"
   local log="$2"
@@ -65,8 +65,8 @@ ${MAGENTA} NOTE:${RESET}
     read keyboard_layout
     case $keyboard_layout in
       [yY])
-        awk -v layout="$layout" '/kb_layout/ {$0 = "  kb_layout = " layout} 1' config/hypr/configs/SystemSettings.conf >temp.conf
-        mv temp.conf config/hypr/configs/SystemSettings.conf
+        awk -v layout="$layout" '/kb_layout/ {$0 = "        kb_layout = \"" layout "\","} 1' config/hypr/configs/SystemSettings.lua >temp.lua
+        mv temp.lua config/hypr/configs/SystemSettings.lua
         echo "${NOTE} kb_layout ${MAGENTA}$layout${RESET} configured in settings." 2>&1 | tee -a "$log"
         break
         ;;
@@ -95,8 +95,8 @@ ${MAGENTA} NOTE:${RESET}
         printf "\n%.0s" {1..1}
         echo -n "${CAT} - Please enter the correct keyboard layout: "
         read new_layout
-        awk -v new_layout="$new_layout" '/kb_layout/ {$0 = "  kb_layout = " new_layout} 1' config/hypr/configs/SystemSettings.conf >temp.conf
-        mv temp.conf config/hypr/configs/SystemSettings.conf
+        awk -v new_layout="$new_layout" '/kb_layout/ {$0 = "        kb_layout = \"" new_layout "\","} 1' config/hypr/configs/SystemSettings.lua >temp.lua
+        mv temp.lua config/hypr/configs/SystemSettings.lua
         echo "${OK} kb_layout $new_layout configured in settings." 2>&1 | tee -a "$log"
         break
         ;;

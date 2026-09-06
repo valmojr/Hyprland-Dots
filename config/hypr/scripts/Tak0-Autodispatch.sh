@@ -40,7 +40,7 @@ LOGFILE="$(dirname "$0")/dispatch.log"
 # 0️⃣ ARGUMENT PARSING
 # ─────────────────────────────────────────────────────────────────────────────
 #   $1            → target workspace
-#   Next args     → optional capture rules (windowrulev2 syntax)
+#   Next args     → optional class capture rules (for example class:^(steam)$)
 #   "--"          → argument separator
 #   After "--"    → command to execute (verbatim)
 
@@ -84,48 +84,13 @@ done
 #   even on crash, SIGTERM, or user interruption.
 
 cleanup() {
-  echo "Cleanup: removing temporary capture rules and initialWorkspace at $(date)" >>"$LOGFILE"
-
-  hyprctl keyword windowrulev2 "unset, initialClass:.*" >>"$LOGFILE" 2>&1 || true
-  for RULE in "${CAPTURE_RULES[@]}"; do
-    echo "Cleanup: removing temporary capture rule: $RULE" >>"$LOGFILE"
-    hyprctl keyword windowrulev2 "unset, $RULE" >>"$LOGFILE" 2>&1 || true
-  done
+  echo "Cleanup: process-based capture finished at $(date)" >>"$LOGFILE"
 }
 
 trap cleanup EXIT INT TERM ERR
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3️⃣ ULTRA-EARLY GLOBAL CAPTURE (NUCLEAR OPTION)
-# ─────────────────────────────────────────────────────────────────────────────
-#   Temporarily forces ALL windows (initialClass:.*)
-#   onto the target workspace.
-#
-#   Protects against ultra-fast helpers:
-#     • gpu-process
-#     • renderer
-#     • steamwebhelper
-
-echo "Applying temporary initialWorkspace capture (initialClass:.*)" >>"$LOGFILE"
-hyprctl keyword windowrulev2 \
-  "initialWorkspace $TARGET_WS silent, initialClass:.*" \
-  >>"$LOGFILE" 2>&1 || true
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3️⃣.1 OPTIONAL CLASS-BASED PRE-CAPTURE
-# ─────────────────────────────────────────────────────────────────────────────
-#   Additional precision rules.
-#   Useful for Electron / Steam multi-process hell.
-
-for RULE in "${CAPTURE_RULES[@]}"; do
-  echo "Applying temporary capture rule: $RULE" >>"$LOGFILE"
-  hyprctl keyword windowrulev2 \
-    "initialWorkspace $TARGET_WS silent, $RULE" \
-    >>"$LOGFILE" 2>&1 || true
-done
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 4️⃣ APPLICATION LAUNCH
+# 3️⃣ APPLICATION LAUNCH
 # ─────────────────────────────────────────────────────────────────────────────
 #   bash -c allows aliases, env vars, wrappers.
 #   ROOT_PID is the root of process lineage.
@@ -151,14 +116,8 @@ fi
 
 echo "App gate name: $APP_NAME" >>"$LOGFILE"
 
-sleep 1.5
-
-#!TO-DO: Release the nuclear option ASAP
-echo "Releasing ultra-early wide capture" >>"$LOGFILE"
-hyprctl keyword windowrulev2 "unset, initialClass:.*" >>"$LOGFILE" 2>&1 || true
-
 # ─────────────────────────────────────────────────────────────────────────────
-# 5️⃣ SUPERVISION LOOP (AUTHORITATIVE PHASE)
+# 4️⃣ SUPERVISION LOOP (AUTHORITATIVE PHASE)
 # ─────────────────────────────────────────────────────────────────────────────
 #   This loop:
 #     • scans ALL Hyprland clients

@@ -110,6 +110,40 @@ version_gte() {
   [ "$1" = "$(echo -e "$1\n$2" | sort -V | tail -n1)" ]
 }
 
+require_lua_hyprland() {
+  local installed_version
+  # Package names below are Arch-specific. Other distro installers select and
+  # validate their own Hyprland package versions.
+  command -v pacman >/dev/null 2>&1 || return 0
+  installed_version=$(pacman -Q hyprland 2>/dev/null | awk '{print $2}' | sed 's/-.*//')
+  if [ -z "$installed_version" ] || ! version_gte "$installed_version" "0.55.0"; then
+    echo "${ERROR} Hyprland-Dots Lua requires Arch hyprland 0.55.0 or newer (detected: ${installed_version:-not installed})."
+    exit 1
+  fi
+}
+
+require_lua_waybar() {
+  local installed_version
+
+  command -v pacman >/dev/null 2>&1 || return 0
+
+  # Waybar 0.15.0 still sends legacy workspace dispatchers.  The Lua-aware
+  # implementation is available in waybar-git and will be released as 0.16.0.
+  if pacman -Q waybar-git >/dev/null 2>&1; then
+    return
+  fi
+
+  installed_version=$(pacman -Q waybar 2>/dev/null | awk '{print $2}' | sed 's/-.*//')
+  if [ -z "$installed_version" ] || ! version_gte "$installed_version" "0.16.0"; then
+    echo "${ERROR} Hyprland-Dots Lua requires waybar-git (or Waybar 0.16.0+) so workspace clicks work."
+    echo "        Install it with: yay -S waybar-git"
+    exit 1
+  fi
+}
+
+require_lua_hyprland
+require_lua_waybar
+
 get_installed_dotfiles_version() {
   local hypr_dir="$HOME/.config/hypr"
   if [ -d "$hypr_dir" ]; then
@@ -299,10 +333,10 @@ detect_nixos_adjust "$LOG"
 
 # activating hyprcursor on env by checking if the directory ~/.icons/Bibata-Modern-Ice/hyprcursors exists
 if [ -d "$HOME/.icons/Bibata-Modern-Ice/hyprcursors" ]; then
-  HYPRCURSOR_ENV_FILE="config/hypr/configs/ENVariables.conf"
+  HYPRCURSOR_ENV_FILE="config/hypr/configs/ENVariables.lua"
   echo "${INFO} Bibata-Hyprcursor directory detected. Activating Hyprcursor...." 2>&1 | tee -a "$LOG" || true
-  sed -i 's/^#env = HYPRCURSOR_THEME,Bibata-Modern-Ice/env = HYPRCURSOR_THEME,Bibata-Modern-Ice/' "$HYPRCURSOR_ENV_FILE"
-  sed -i 's/^#env = HYPRCURSOR_SIZE,24/env = HYPRCURSOR_SIZE,24/' "$HYPRCURSOR_ENV_FILE"
+  sed -i 's/hl.env("HYPRCURSOR_THEME", "Bibata-Modern-Ice")/hl.env("HYPRCURSOR_THEME", "Bibata-Modern-Ice")/' "$HYPRCURSOR_ENV_FILE"
+  sed -i 's/hl.env("HYPRCURSOR_SIZE", 24)/hl.env("HYPRCURSOR_SIZE", 24)/' "$HYPRCURSOR_ENV_FILE"
 fi
 
 printf "\n%.0s" {1..1}
@@ -375,6 +409,12 @@ printf "\n%.0s" {1..1}
 printf "${INFO} - Copying dotfiles ${SKY_BLUE}second${RESET} part\n"
 copy_phase2 "$LOG"
 printf "\\n%.0s" {1..1}
+
+# copy_phase2 moves an old ~/.config/hypr aside. Convert that backup onto the
+# new Lua tree before the normal restoration helpers run.
+if [ "$UPGRADE_MODE" -eq 1 ] && [ "$EXPRESS_MODE" -eq 0 ] && [ -n "${HYPR_BACKUP_PATH:-}" ]; then
+  migrate_legacy_hyprland "$LOG" "$HYPR_BACKUP_PATH" "$HOME/.config/hypr" "$SCRIPT_DIR" || true
+fi
 
 # ags config
 # Check if ags is installed
@@ -469,13 +509,12 @@ if command -v qs >/dev/null 2>&1; then
   fi
   
   # Check for old quickshell startup commands and update them
-  HYPR_STARTUP="$HOME/.config/hypr/configs/Startup_Apps.conf"
+  HYPR_STARTUP="$HOME/.config/hypr/configs/Startup_Apps.lua"
   if [ -f "$HYPR_STARTUP" ]; then
-    if grep -q '^exec-once = qs\s*$\|^exec-once = qs &' "$HYPR_STARTUP"; then
+    if grep -q 'hl.exec_cmd("qs\( &\)\?")' "$HYPR_STARTUP"; then
       echo "${NOTE} - Found old Quickshell startup command, updating to new overview config..." 2>&1 | tee -a "$LOG"
       # Replace old 'qs' or 'qs &' with new 'qs -c overview'
-      sed -i 's/^\(\s*\)exec-once = qs\s*$/\1exec-once = qs -c overview  # Quickshell Overview/' "$HYPR_STARTUP" 2>&1 | tee -a "$LOG"
-      sed -i 's/^\(\s*\)exec-once = qs &$/\1exec-once = qs -c overview  # Quickshell Overview/' "$HYPR_STARTUP" 2>&1 | tee -a "$LOG"
+      sed -i 's/hl.exec_cmd("qs\( &\)\?")/hl.exec_cmd("qs -c overview")/' "$HYPR_STARTUP" 2>&1 | tee -a "$LOG"
       echo "${OK} - Updated Quickshell startup command to use overview config" 2>&1 | tee -a "$LOG"
     fi
   fi

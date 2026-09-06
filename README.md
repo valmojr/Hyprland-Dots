@@ -99,6 +99,33 @@ sh <(curl -L https://raw.githubusercontent.com/valmojr/Hyprland-Dots/main/Distro
 - refer to install scripts what packages needed to install... but at least, Hyprland packages are required
 - This repo will be pulled by the Distro-Hyprland install scripts above if you opt to download pre-configured dots
 
+### Lua Hyprland configuration
+
+This fork uses Hyprland's Lua configuration provider (`hyprland.lua`) on new
+installations. On Arch, it requires Hyprland 0.55+ and installs `waybar-git`
+while Waybar 0.15 is unable to handle Lua workspace-click dispatches.
+
+To migrate a previous JaKooLit/Hyprlang tree safely, run this from the cloned
+repository. The script first creates and validates a staged Lua tree, writes a
+`migration-report.json`, and only activates it after it has no blockers. The
+original directory is moved to a timestamped backup automatically.
+
+```bash
+./scripts/migrate-hyprland-to-lua.py --config-dir ~/.config/hypr
+```
+
+Use `--dry-run` to inspect the report without changing anything. Configurations
+outside the supported JaKooLit layout require the explicit `--experimental`
+flag and are never activated when a directive needs manual review.
+
+For an Arch user who wants the guided update without cloning the repository,
+share this one-line command. It asks before installing `waybar-git`, changing
+the configuration, or reloading Hyprland:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/valmojr/Hyprland-Dots/main/scripts/update-arch-hyprland-lua.sh)
+```
+
 ### 👀 Screenshots 👀
 
 - All screenshots are collected here [Screenshots](https://github.com/JaKooLit/screenshots/tree/main/Hyprland-ScreenShots)

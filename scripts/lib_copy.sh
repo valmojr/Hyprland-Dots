@@ -117,15 +117,51 @@ copy_phase2() {
       echo -e "\n${NOTE:-[NOTE]} - Config for ${YELLOW:-}$DIR_NAME${RESET:-} found, attempting to back up."
       BACKUP_DIR=$(get_backup_dirname)
       mv "$DIRPATH" "$DIRPATH-backup-$BACKUP_DIR" 2>&1 | tee -a "$log"
+      if [ "$DIR_NAME" = "hypr" ]; then
+        HYPR_BACKUP_PATH="$DIRPATH-backup-$BACKUP_DIR"
+      fi
     fi
     if [ -d "config/$DIR_NAME" ]; then
       cp -r "config/$DIR_NAME/" "$HOME/.config/$DIR_NAME" 2>&1 | tee -a "$log"
+      if [ "$DIR_NAME" = "hypr" ]; then
+        # Lua is the only Hyprland entrypoint shipped by this fork. Keep the
+        # independent hypridle/hyprlock .conf files, but do not install stale
+        # Hyprlang modules alongside the Lua module tree.
+        find "$DIRPATH/configs" "$DIRPATH/UserConfigs" -type f -name '*.conf' -delete 2>/dev/null || true
+        rm -f "$DIRPATH/hyprland.conf" "$DIRPATH/hyprland.conf.legacy" \
+          "$DIRPATH/monitors.conf" "$DIRPATH/workspaces.conf" "$DIRPATH/application-style.conf"
+      fi
       echo "${OK:-[OK]} - Copy of config for ${YELLOW:-}$DIR_NAME${RESET:-} completed!" 2>&1 | tee -a "$log"
     else
       echo "${ERROR:-[ERROR]} - Directory config/$DIR_NAME does not exist to copy." 2>&1 | tee -a "$log"
     fi
   done
   install_terminal_configs "$log"
+}
+
+migrate_legacy_hyprland() {
+  local log="$1"
+  local source_dir="$2"
+  local target_dir="$3"
+  local repo_root="$4"
+  local migrator="$repo_root/scripts/migrate-hyprland-to-lua.py"
+
+  [ -f "$source_dir/hyprland.conf" ] || return 1
+  [ -x "$(command -v python3)" ] || {
+    echo "${ERROR:-[ERROR]} Python 3 is required to migrate Hyprland configs." | tee -a "$log"
+    return 1
+  }
+
+  echo "${NOTE:-[NOTE]} Legacy Hyprlang config detected at $source_dir." | tee -a "$log"
+  read -r -p "${CAT:-[ACTION]} Migrate it to Lua now? (Y/n): " migrate_choice
+  [[ "$migrate_choice" == [Nn]* ]] && return 1
+
+  python3 "$migrator" \
+    --config-dir "$source_dir" \
+    --target-dir "$target_dir" \
+    --template-dir "$repo_root/config/hypr" \
+    --no-target-backup \
+    --yes 2>&1 | tee -a "$log"
 }
 
 # Restore Animations and Monitor Profiles plus key hypr files from backup
@@ -155,7 +191,7 @@ restore_hypr_assets() {
       fi
     done
 
-    local FILE_B=("monitors.conf" "workspaces.conf")
+    local FILE_B=("monitors.lua" "workspaces.lua")
     for FILE_RESTORE in "${FILE_B[@]}"; do
       local BACKUP_FILE="$BACKUP_HYPR_PATH/$FILE_RESTORE"
       if [ -f "$BACKUP_FILE" ]; then
@@ -219,15 +255,15 @@ cleanup_duplicate_userconfigs() {
   local BASE_DIR="$HYPR_DIR/configs"
   local USER_DIR="$HYPR_DIR/UserConfigs"
 
-  local STARTUP_BASE="$BASE_DIR/Startup_Apps.conf"
-  local STARTUP_USER="$USER_DIR/Startup_Apps.conf"
-  local WINDOW_BASE="$BASE_DIR/WindowRules.conf"
-  local WINDOW_USER="$USER_DIR/WindowRules.conf"
-  local KEYBINDS_BASE="$BASE_DIR/Keybinds.conf"
-  local KEYBINDS_USER="$USER_DIR/UserKeybinds.conf"
+  local STARTUP_BASE="$BASE_DIR/Startup_Apps.lua"
+  local STARTUP_USER="$USER_DIR/Startup_Apps.lua"
+  local WINDOW_BASE="$BASE_DIR/WindowRules.lua"
+  local WINDOW_USER="$USER_DIR/WindowRules.lua"
+  local KEYBINDS_BASE="$BASE_DIR/Keybinds.lua"
+  local KEYBINDS_USER="$USER_DIR/UserKeybinds.lua"
 
   # Startup_Apps: strip exec-once lines from UserConfigs that are exact
-  # duplicates of the base Startup_Apps.conf.
+  # duplicates of the base Startup_Apps.lua.
   if [ -f "$STARTUP_BASE" ] && [ -f "$STARTUP_USER" ]; then
     local tmp_startup
     local backup_startup
@@ -260,7 +296,7 @@ cleanup_duplicate_userconfigs() {
   fi
 
   # WindowRules: strip windowrule/layerrule lines from UserConfigs that
-  # are exact duplicates of the base WindowRules.conf.
+  # are exact duplicates of the base WindowRules.lua.
   if [ -f "$WINDOW_BASE" ] && [ -f "$WINDOW_USER" ]; then
     local tmp_window
     local backup_window
@@ -292,8 +328,8 @@ cleanup_duplicate_userconfigs() {
     fi
   fi
 
-  # Keybinds: strip bind* lines from UserKeybinds.conf that are exact
-  # duplicates of the base Keybinds.conf. Comments and unbinds are kept.
+  # Keybinds: strip bind* lines from UserKeybinds.lua that are exact
+  # duplicates of the base Keybinds.lua. Comments and unbinds are kept.
   if [ -f "$KEYBINDS_BASE" ] && [ -f "$KEYBINDS_USER" ]; then
     local tmp_keybinds
     local backup_keybinds
@@ -321,7 +357,7 @@ cleanup_duplicate_userconfigs() {
     if ! cmp -s "$KEYBINDS_USER" "$tmp_keybinds"; then
       cp "$KEYBINDS_USER" "$backup_keybinds"
       mv "$tmp_keybinds" "$KEYBINDS_USER"
-      echo "${NOTE:-[NOTE]} - Removed duplicate UserKeybinds entries matching base Keybinds.conf." 2>&1 | tee -a "$log"
+      echo "${NOTE:-[NOTE]} - Removed duplicate UserKeybinds entries matching base Keybinds.lua." 2>&1 | tee -a "$log"
     else
       rm -f "$tmp_keybinds"
     fi
@@ -383,28 +419,28 @@ restore_user_configs() {
       echo -e "${NOTE:-[NOTE]} Detected version ${YELLOW:-}v$CURRENT_VERSION${RESET:-} (older than v$TARGET_VERSION). Using legacy restoration mode." 2>&1 | tee -a "$log"
 
       local FILES_TO_RESTORE=(
-        "01-UserDefaults.conf"
-        "ENVariables.conf"
-        "LaptopDisplay.conf"
-        "Laptops.conf"
-        "Startup_Apps.conf"
-        "UserDecorations.conf"
-        "UserAnimations.conf"
-        "UserKeybinds.conf"
-        "UserSettings.conf"
-        "WindowRules.conf"
+        "01-UserDefaults.lua"
+        "ENVariables.lua"
+        "LaptopDisplay.lua"
+        "Laptops.lua"
+        "Startup_Apps.lua"
+        "UserDecorations.lua"
+        "UserAnimations.lua"
+        "UserKeybinds.lua"
+        "UserSettings.lua"
+        "WindowRules.lua"
       )
 
       for FILE_NAME in "${FILES_TO_RESTORE[@]}"; do
         local BACKUP_FILE="$BACKUP_DIR_PATH/$FILE_NAME"
         if [ -f "$BACKUP_FILE" ]; then
-          if [ "$FILE_NAME" = "Startup_Apps.conf" ]; then
-            compose_overlay_from_backup "startup" "$DIRPATH/configs/Startup_Apps.conf" "$BACKUP_FILE" "$DIRPATH/UserConfigs/Startup_Apps.conf" "$DIRPATH/UserConfigs/Startup_Apps.disable"
+          if [ "$FILE_NAME" = "Startup_Apps.lua" ]; then
+            compose_overlay_from_backup "startup" "$DIRPATH/configs/Startup_Apps.lua" "$BACKUP_FILE" "$DIRPATH/UserConfigs/Startup_Apps.lua" "$DIRPATH/UserConfigs/Startup_Apps.disable"
             echo "${OK:-[OK]} - Migrated overlay for ${YELLOW:-}$FILE_NAME${RESET:-}" 2>&1 | tee -a "$log"
             continue
           fi
-          if [ "$FILE_NAME" = "WindowRules.conf" ]; then
-            compose_overlay_from_backup "windowrules" "$DIRPATH/configs/WindowRules.conf" "$BACKUP_FILE" "$DIRPATH/UserConfigs/WindowRules.conf" "$DIRPATH/UserConfigs/WindowRules.disable"
+          if [ "$FILE_NAME" = "WindowRules.lua" ]; then
+            compose_overlay_from_backup "windowrules" "$DIRPATH/configs/WindowRules.lua" "$BACKUP_FILE" "$DIRPATH/UserConfigs/WindowRules.lua" "$DIRPATH/UserConfigs/WindowRules.disable"
             echo "${OK:-[OK]} - Migrated overlay for ${YELLOW:-}$FILE_NAME${RESET:-}" 2>&1 | tee -a "$log"
             continue
           fi

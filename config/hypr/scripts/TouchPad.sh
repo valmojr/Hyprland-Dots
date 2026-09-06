@@ -33,13 +33,13 @@ status_file="${XDG_RUNTIME_DIR:-/tmp}/touchpad.status"
 enable_touchpad() {
     printf "true" >"$status_file"
     notify-send -u low -i "$notif" " Enabling" " touchpad"
-    hyprctl keyword "$touchpad_keyword" true -r
+    hyprctl eval 'hl.config({ input = { touchpad = { enabled = true } } })'
 }
 
 disable_touchpad() {
     printf "false" >"$status_file"
     notify-send -u low -i "$notif" " Disabling" " touchpad"
-    hyprctl keyword "$touchpad_keyword" false -r
+    hyprctl eval 'hl.config({ input = { touchpad = { enabled = false } } })'
 }
 
 current_state="false"
