@@ -13,27 +13,27 @@ cleanup() {
 trap cleanup EXIT
 
 say() { printf '\n==> %s\n' "$*"; }
-die() { printf '\nErro: %s\n' "$*" >&2; exit 1; }
+die() { printf '\nError: %s\n' "$*" >&2; exit 1; }
 confirm() {
   local reply
-  read -r -p "$1 [S/n] " reply
+  read -r -p "$1 [Y/n] " reply
   [[ ! "$reply" =~ ^[Nn]$ ]]
 }
 
-command -v pacman >/dev/null 2>&1 || die "Este script é exclusivo para Arch Linux."
-command -v Hyprland >/dev/null 2>&1 || die "Hyprland não está instalado."
-command -v git >/dev/null 2>&1 || die "Instale git e execute novamente: sudo pacman -S git"
-command -v python3 >/dev/null 2>&1 || die "Instale Python e execute novamente: sudo pacman -S python"
+command -v pacman >/dev/null 2>&1 || die "This script is only for Arch Linux."
+command -v Hyprland >/dev/null 2>&1 || die "Hyprland is not installed."
+command -v git >/dev/null 2>&1 || die "Install git and run this script again: sudo pacman -S git"
+command -v python3 >/dev/null 2>&1 || die "Install Python and run this script again: sudo pacman -S python"
 
 hypr_version=$(pacman -Q hyprland 2>/dev/null | awk '{print $2}' | sed 's/-.*//')
-[[ -n "$hypr_version" ]] || die "O pacote hyprland não foi encontrado pelo pacman."
+[[ -n "$hypr_version" ]] || die "The hyprland package was not found by pacman."
 if (( $(vercmp "$hypr_version" "0.55.0") < 0 )); then
-  die "Hyprland $hypr_version é antigo. Atualize o sistema e tente novamente: sudo pacman -Syu"
+  die "Hyprland $hypr_version is too old. Update the system and try again: sudo pacman -Syu"
 fi
 
-say "Este assistente vai baixar temporariamente valmojr/Hyprland-Dots, instalar Waybar compatível e converter ~/.config/hypr para Lua."
-say "A conversão só é ativada se Hyprland validá-la; a configuração anterior é preservada em ~/.config/hypr-pre-lua-DATA."
-confirm "Continuar?" || { say "Cancelado; nada foi alterado."; exit 0; }
+say "This assistant will temporarily download valmojr/Hyprland-Dots, install a compatible Waybar, and convert ~/.config/hypr to Lua."
+say "The conversion is activated only after Hyprland validates it; the old configuration is preserved at ~/.config/hypr-pre-lua-DATE."
+confirm "Continue?" || { say "Cancelled; nothing was changed."; exit 0; }
 
 if ! pacman -Q waybar-git >/dev/null 2>&1; then
   if command -v yay >/dev/null 2>&1; then
@@ -41,33 +41,33 @@ if ! pacman -Q waybar-git >/dev/null 2>&1; then
   elif command -v paru >/dev/null 2>&1; then
     aur_helper=(paru -S --needed)
   else
-    die "Instale yay ou paru para instalar waybar-git e execute novamente."
+    die "Install yay or paru to install waybar-git, then run this script again."
   fi
-  say "Waybar 0.15 não suporta clique em workspaces com a configuração Lua. Será instalado waybar-git; confirme a remoção de waybar, se o gerenciador perguntar."
-  confirm "Instalar/atualizar waybar-git agora?" || die "Sem waybar-git, a atualização foi cancelada."
+  say "Waybar 0.15 does not support workspace clicks with Lua configuration. waybar-git will be installed; confirm removal of waybar if the package manager asks."
+  confirm "Install/update waybar-git now?" || die "The update was cancelled because waybar-git is required."
   "${aur_helper[@]}" waybar-git
 fi
 
-say "Baixando o conversor atualizado"
+say "Downloading the current converter"
 git clone --depth=1 "$REPOSITORY" "$WORKDIR/dots"
 MIGRATOR="$WORKDIR/dots/scripts/migrate-hyprland-to-lua.py"
-[[ -x "$MIGRATOR" ]] || die "O conversor Lua não existe no repositório baixado."
+[[ -x "$MIGRATOR" ]] || die "The downloaded repository does not contain the Lua converter."
 
 if [[ -f "$HOME/.config/hypr/hyprland.conf" ]]; then
-  say "Configuração Hyprlang detectada; criando uma árvore Lua validada."
+  say "Hyprlang configuration detected; creating a validated Lua tree."
   python3 "$MIGRATOR" --config-dir "$HOME/.config/hypr" --template-dir "$WORKDIR/dots/config/hypr"
 elif [[ -f "$HOME/.config/hypr/hyprland.lua" ]]; then
-  say "A configuração já usa Lua; validando-a."
+  say "The configuration already uses Lua; validating it."
   Hyprland --verify-config --config "$HOME/.config/hypr/hyprland.lua"
 else
-  die "Não encontrei ~/.config/hypr/hyprland.conf nem hyprland.lua. Nenhuma alteração foi feita."
+  die "Could not find ~/.config/hypr/hyprland.conf or hyprland.lua. Nothing was changed."
 fi
 
 if command -v hyprctl >/dev/null 2>&1 && hyprctl instances -j >/dev/null 2>&1; then
-  if confirm "Recarregar a configuração do Hyprland agora?"; then
+  if confirm "Reload the Hyprland configuration now?"; then
     hyprctl reload
-    say "Configuração recarregada. Se algo parecer estranho, termine a sessão e entre novamente."
+    say "Configuration reloaded. If anything looks wrong, log out and back in."
   fi
 fi
 
-say "Concluído. Confira o migration-report.json em ~/.config/hypr quando uma conversão foi feita."
+say "Done. Check ~/.config/hypr/migration-report.json when a conversion was performed."

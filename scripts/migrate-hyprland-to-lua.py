@@ -62,6 +62,10 @@ def lua_key(key: str) -> str:
 
 def lua_value(value: str, variables: dict[str, str]) -> str:
     value = value.strip()
+    if value.lower() in {"yes", "on"}:
+        return "true"
+    if value.lower() in {"no", "off"}:
+        return "false"
     if value in {"true", "false", "nil"} or re.fullmatch(r"-?\d+(?:\.\d+)?", value):
         return value
     if value.startswith("$") and re.fullmatch(r"\$[A-Za-z_][A-Za-z0-9_]*", value):
@@ -99,7 +103,7 @@ def parse_blocks(lines: list[str], report: Report, origin: str) -> tuple[dict, l
         if line.endswith("{"):
             name = line[:-1].strip()
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", name):
-                report.blockers.append(f"{origin}:{number}: bloco não suportado: {name}")
+                report.blockers.append(f"{origin}:{number}: unsupported block: {name}")
                 continue
             node = stack[-1].setdefault(name, {})
             if not isinstance(node, dict):
@@ -114,10 +118,10 @@ def parse_blocks(lines: list[str], report: Report, origin: str) -> tuple[dict, l
                 stack.pop()
             continue
         if "=" not in line:
-            report.blockers.append(f"{origin}:{number}: sintaxe não reconhecida: {line}")
+            report.blockers.append(f"{origin}:{number}: unrecognized syntax: {line}")
             continue
         key, value = (part.strip() for part in line.split("=", 1))
-        if key in {"env", "exec-once", "monitor", "workspace", "windowrule", "windowrulev2", "layerrule", "animation", "gesture", "unbind"} or key.startswith("bind"):
+        if key in {"env", "exec-once", "monitor", "workspace", "windowrule", "windowrulev2", "layerrule", "animation", "bezier", "gesture", "unbind"} or key.startswith("bind"):
             directives.append((key, value)); continue
         if key == "source":
             # Module sources are represented by the Lua entrypoint; arbitrary
@@ -128,7 +132,7 @@ def parse_blocks(lines: list[str], report: Report, origin: str) -> tuple[dict, l
         else:
             stack[-1][key] = value
     if len(stack) != 1:
-        report.blockers.append(f"{origin}: bloco não fechado")
+        report.blockers.append(f"{origin}: unclosed block")
     return root, directives
 
 
@@ -160,7 +164,7 @@ def bind_dispatch(dispatcher: str, arg: str, report: Report, origin: str) -> str
     if dispatcher == "closewindow": return "hl.dsp.window.close()"
     if dispatcher == "movetoworkspace": return f"hl.dsp.window.move({{ workspace = {q(arg)} }})"
     if dispatcher == "togglespecialworkspace": return f"hl.dsp.workspace.toggle_special({q(arg)})" if arg else "hl.dsp.workspace.toggle_special()"
-    report.blockers.append(f"{origin}: dispatcher de bind não suportado: {dispatcher}")
+    report.blockers.append(f"{origin}: unsupported bind dispatcher: {dispatcher}")
     return None
 
 
@@ -181,16 +185,16 @@ def emit_window_rule(value: str, report: Report, origin: str) -> str | None:
     """Convert the common v1 rule form used by the fork and user overrides."""
     fields = split_csv(value)
     if len(fields) < 2:
-        report.blockers.append(f"{origin}: windowrule inválida: {value}")
+        report.blockers.append(f"{origin}: invalid windowrule: {value}")
         return None
     matcher, effect = fields[0].strip(), fields[1].strip()
     if not matcher.startswith("match:"):
-        report.blockers.append(f"{origin}: windowrule sem match: explícito: {value}")
+        report.blockers.append(f"{origin}: windowrule without an explicit match: selector: {value}")
         return None
     match_key, _, match_value = matcher[6:].partition(" ")
     aliases = {"class": "class", "title": "title", "initial_class": "initial_class", "initial_title": "initial_title", "tag": "tag"}
     if match_key not in aliases or not match_value:
-        report.blockers.append(f"{origin}: match de windowrule não suportado: {matcher}")
+        report.blockers.append(f"{origin}: unsupported windowrule match: {matcher}")
         return None
     rule = ["hl.window_rule({", "  match = {", f"    {aliases[match_key]} = {q(match_value)},", "  },"]
     if effect.startswith("opacity "):
@@ -200,10 +204,40 @@ def emit_window_rule(value: str, report: Report, origin: str) -> str | None:
     elif effect.startswith("workspace "):
         rule.append(f"  workspace = {q(effect[10:].strip())},")
     else:
-        report.blockers.append(f"{origin}: efeito de windowrule não suportado: {effect}")
+        report.blockers.append(f"{origin}: unsupported windowrule effect: {effect}")
         return None
     rule.append("})")
     return "\n".join(rule)
+
+
+def emit_bezier(value: str, report: Report, origin: str) -> str | None:
+    fields = split_csv(value)
+    if len(fields) != 5:
+        report.blockers.append(f"{origin}: invalid bezier curve: {value}")
+        return None
+    name, *points = fields
+    if not all(re.fullmatch(r"-?\d+(?:\.\d+)?", point) for point in points):
+        report.blockers.append(f"{origin}: invalid bezier curve points: {value}")
+        return None
+    return "hl.curve(%s, { type = \"bezier\", points = { { %s, %s }, { %s, %s } } })" % (
+        q(name), *points,
+    )
+
+
+def emit_animation(value: str, report: Report, origin: str) -> str | None:
+    fields = split_csv(value)
+    if len(fields) not in {4, 5}:
+        report.blockers.append(f"{origin}: invalid animation: {value}")
+        return None
+    leaf, enabled, speed, bezier = fields[:4]
+    enabled_value = {"1": "true", "yes": "true", "true": "true", "0": "false", "no": "false", "false": "false"}.get(enabled.lower())
+    if enabled_value is None or not re.fullmatch(r"-?\d+(?:\.\d+)?", speed):
+        report.blockers.append(f"{origin}: invalid animation values: {value}")
+        return None
+    args = [f"leaf = {q(leaf)}", f"enabled = {enabled_value}", f"speed = {speed}", f"bezier = {q(bezier)}"]
+    if len(fields) == 5:
+        args.append(f"style = {q(fields[4])}")
+    return "hl.animation({ " + ", ".join(args) + " })"
 
 
 def emit_directives(directives: list[tuple[str, str]], variables: dict[str, str], report: Report, origin: str) -> list[str]:
@@ -213,24 +247,24 @@ def emit_directives(directives: list[tuple[str, str]], variables: dict[str, str]
         if key == "env":
             fields = split_csv(value)
             if len(fields) == 2: out.append(f"hl.env({q(fields[0])}, {lua_value(fields[1], variables)})")
-            else: report.blockers.append(f"{origin}: env inválido: {value}")
+            else: report.blockers.append(f"{origin}: invalid env directive: {value}")
         elif key == "exec-once":
             startup.append(value)
         elif key == "monitor":
             fields = split_csv(value)
             if len(fields) >= 4:
                 out.append("hl.monitor({ output = %s, mode = %s, position = %s, scale = %s })" % tuple(q(x) for x in fields[:4]))
-            else: report.blockers.append(f"{origin}: monitor inválido: {value}")
+            else: report.blockers.append(f"{origin}: invalid monitor directive: {value}")
         elif key == "unbind":
             fields = split_csv(value)
             if len(fields) != 2:
-                report.blockers.append(f"{origin}: unbind inválido: {value}"); continue
+                report.blockers.append(f"{origin}: invalid unbind directive: {value}"); continue
             out.append(f"hl.unbind({key_combo(fields[0], fields[1], variables)})")
         elif key.startswith("bind"):
             fields = split_csv(value)
             dispatcher_index = 3 if key == "bindd" else 2
             if len(fields) <= dispatcher_index:
-                report.blockers.append(f"{origin}: bind inválido: {value}"); continue
+                report.blockers.append(f"{origin}: invalid bind directive: {value}"); continue
             mods, binding = fields[:2]
             dispatcher = fields[dispatcher_index]
             arg = ",".join(fields[dispatcher_index + 1:]).strip()
@@ -240,18 +274,29 @@ def emit_directives(directives: list[tuple[str, str]], variables: dict[str, str]
         elif key == "windowrule":
             rule = emit_window_rule(value, report, origin)
             if rule: out.append(rule)
-        elif key in {"windowrulev2", "layerrule", "workspace", "animation", "gesture"}:
-            report.blockers.append(f"{origin}: {key} requer conversão manual: {value}")
+        elif key == "bezier":
+            curve = emit_bezier(value, report, origin)
+            if curve: out.append(curve)
+        elif key == "animation":
+            animation = emit_animation(value, report, origin)
+            if animation: out.append(animation)
+        elif key in {"windowrulev2", "layerrule", "workspace", "gesture"}:
+            report.blockers.append(f"{origin}: {key} requires manual conversion: {value}")
     if startup:
         out.extend(["hl.on(\"hyprland.start\", function()"] + [f"    hl.exec_cmd({q(cmd)})" for cmd in startup] + ["end)"])
     return out
 
 
-def convert_file(source: Path, destination: Path, report: Report) -> None:
+def convert_file(source: Path, destination: Path, report: Report, preserve_template: bool = False) -> None:
     tree, directives = parse_blocks(source.read_text(errors="replace").splitlines(), report, str(source))
     raw_vars = tree.pop("__variables__", {})
     variables = {name: lua_value(value, {}) for name, value in raw_vars.items()}
     lines = ["-- Generated by Hyprland-Dots migration. Review migration-report.json.", "---@module 'hl'", ""]
+    if preserve_template and destination.exists():
+        # Animation files routinely reference the fork's named curves. Keep
+        # reviewed defaults first, then let converted user declarations
+        # override them instead of leaving animations without their bezier.
+        lines = [destination.read_text().rstrip(), "", "-- Converted user animation overrides", ""]
     for name, value in raw_vars.items(): lines.append(f"local {name} = {lua_value(value, variables)}")
     if raw_vars: lines.append("")
     if tree: lines.extend(emit_table(tree, variables)); lines.append("")
@@ -284,7 +329,7 @@ def run_check(stage: Path, report: Report) -> None:
         if result.returncode: report.blockers.append(f"{lua}: luac: {result.stderr.strip()}")
     result = subprocess.run(["Hyprland", "--verify-config", "--config", str(stage / "hyprland.lua")], text=True, capture_output=True)
     if result.returncode or "config ok" not in result.stdout + result.stderr:
-        report.blockers.append("Hyprland --verify-config falhou: " + (result.stdout + result.stderr).strip())
+        report.blockers.append("Hyprland --verify-config failed: " + (result.stdout + result.stderr).strip())
 
 
 def main() -> int:
@@ -303,11 +348,11 @@ def main() -> int:
     if args.rollback:
         if target.exists(): shutil.rmtree(target)
         shutil.copytree(args.rollback.expanduser(), target)
-        print(f"Rollback restaurado em {target}"); return 0
+        print(f"Rollback restored to {target}"); return 0
     if not source.is_dir() or not args.template_dir.is_dir():
-        parser.error("config-dir e template-dir devem existir")
+        parser.error("config-dir and template-dir must exist")
     if not is_supported_tree(source) and not args.experimental:
-        parser.error("config não reconhecida; use --experimental para uma conversão sem garantia")
+        parser.error("unrecognized configuration; use --experimental for an unsupported conversion")
     report = Report()
     with tempfile.TemporaryDirectory(prefix="hypr-lua-migration-", dir=target.parent) as tmp:
         stage = Path(tmp) / "hypr"
@@ -317,31 +362,36 @@ def main() -> int:
             if legacy.exists() and not matches_shipped_legacy(legacy, source, args.template_dir):
                 convert_file(legacy, stage / rel.with_suffix(".lua"), report)
             elif legacy.exists():
-                report.warnings.append(f"{legacy}: default do fork; mantido o módulo Lua revisado")
+                report.warnings.append(f"{legacy}: fork default; kept the reviewed Lua module")
         for directory, allowed in [("UserConfigs", USER_MODULES), ("configs", CONFIG_MODULES)]:
             for conf in (source / directory).glob("*.conf") if (source / directory).is_dir() else []:
                 if conf.stem in allowed and not matches_shipped_legacy(conf, source, args.template_dir):
-                    convert_file(conf, stage / directory / f"{conf.stem}.lua", report)
+                    convert_file(
+                        conf,
+                        stage / directory / f"{conf.stem}.lua",
+                        report,
+                        preserve_template=(directory == "UserConfigs" and conf.stem == "UserAnimations"),
+                    )
                 elif conf.stem in allowed:
-                    report.warnings.append(f"{conf}: default do fork; mantido o módulo Lua revisado")
-                else: report.warnings.append(f"{conf}: módulo legado mantido fora do entrypoint Lua")
+                    report.warnings.append(f"{conf}: fork default; kept the reviewed Lua module")
+                else: report.warnings.append(f"{conf}: legacy module kept outside the Lua entrypoint")
         run_check(stage, report)
         report.write(stage / "migration-report.json")
         print(json.dumps(report.__dict__, indent=2))
         if args.dry_run or report.blockers:
             return 0 if not report.blockers else 2
         if not args.yes:
-            answer = input("Ativar a árvore Lua validada? [y/N] ").strip().lower()
-            if answer not in {"y", "yes", "s", "sim"}: return 0
+            answer = input("Activate the validated Lua tree? [y/N] ").strip().lower()
+            if answer not in {"y", "yes"}: return 0
         if target.exists() and not args.no_target_backup:
             stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
             backup = target.with_name(f"{target.name}-pre-lua-{stamp}")
             shutil.move(target, backup)
-            print(f"Backup: {backup}")
+            print(f"Backup created at: {backup}")
         elif target.exists():
             shutil.rmtree(target)
         shutil.move(stage, target)
-    print(f"Lua ativada em {target}. Saia e entre novamente no Hyprland.")
+    print(f"Lua configuration activated at {target}. Log out and back in to Hyprland.")
     return 0
 
 
