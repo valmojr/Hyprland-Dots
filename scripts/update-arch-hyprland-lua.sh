@@ -35,17 +35,26 @@ say "This assistant will temporarily download valmojr/Hyprland-Dots, install a c
 say "The conversion is activated only after Hyprland validates it; the old configuration is preserved at ~/.config/hypr-pre-lua-DATE."
 confirm "Continue?" || { say "Cancelled; nothing was changed."; exit 0; }
 
+if command -v yay >/dev/null 2>&1; then
+  aur_helper=(yay)
+elif command -v paru >/dev/null 2>&1; then
+  aur_helper=(paru)
+else
+  die "Install yay or paru to install waybar-git, then run this script again."
+fi
+
 if ! pacman -Q waybar-git >/dev/null 2>&1; then
-  if command -v yay >/dev/null 2>&1; then
-    aur_helper=(yay -S --needed)
-  elif command -v paru >/dev/null 2>&1; then
-    aur_helper=(paru -S --needed)
-  else
-    die "Install yay or paru to install waybar-git, then run this script again."
-  fi
   say "Waybar 0.15 does not support workspace clicks with Lua configuration. waybar-git will be installed; confirm removal of waybar if the package manager asks."
   confirm "Install/update waybar-git now?" || die "The update was cancelled because waybar-git is required."
-  "${aur_helper[@]}" waybar-git
+  "${aur_helper[@]}" -S --needed waybar-git
+elif ! waybar --version >/dev/null 2>&1; then
+  say "waybar-git cannot start. This usually means an Arch shared library was updated and Waybar must be rebuilt."
+  confirm "Rebuild waybar-git now?" || die "The update was cancelled because Waybar is not runnable."
+  "${aur_helper[@]}" -S --rebuild waybar-git
+fi
+
+if ! waybar --version >/dev/null 2>&1; then
+  die "waybar-git still cannot start after installation/rebuild. Run: ${aur_helper[0]} -S --rebuild waybar-git"
 fi
 
 say "Downloading the current converter"
